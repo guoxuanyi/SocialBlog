@@ -90,6 +90,16 @@ namespace SocialBlog.Api.Controllers
             return Ok(response);
         }
 
+        [HttpGet("recommended")]
+        public async Task<ActionResult<ApiResponse<List<PostDto>>>> GetRecommendedPosts(
+            [FromQuery] int limit = 10,
+            CancellationToken ct = default)
+        {
+            var posts = await mediator.Send(new GetRecommendedPostsQuery(limit), ct);
+            var dtos = mapper.Map<List<PostDto>>(posts);
+            return Ok(ApiResponse<List<PostDto>>.Success(dtos));
+        }
+
         /// <summary>
         /// 获取用户的文章列表
         /// </summary>

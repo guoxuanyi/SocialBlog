@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.Localization;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,6 +58,24 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromSeconds(30)
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var jti = context.Principal?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
+                if (string.IsNullOrWhiteSpace(jti))
+                {
+                    return;
+                }
+
+                var blacklist = context.HttpContext.RequestServices.GetRequiredService<ITokenBlacklistRepository>();
+                if (await blacklist.IsBlacklistedAsync(jti, context.HttpContext.RequestAborted))
+                {
+                    context.Fail("Token revoked");
+                }
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -91,6 +110,15 @@ builder.Services.AddScoped<IPostRepository, PostRepository>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ILikeRepository, LikeRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+builder.Services.AddScoped<ITokenBlacklistRepository, TokenBlacklistRepository>();
+
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
+if (!string.IsNullOrWhiteSpace(redisConnectionString))
+{
+    builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnectionString));
+    builder.Services.AddScoped<ITokenBlacklistRepository, RedisTokenBlacklistRepository>();
+}
 
 var app = builder.Build();
 

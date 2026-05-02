@@ -8,6 +8,7 @@ namespace SocialBlog.Core.Interfaces
         Task<Post?> GetByIdAsync(string id, CancellationToken cancellationToken = default);
         Task<List<Post>> GetByAuthorIdAsync(string authorId, int skip = 0, int limit = 10, CancellationToken cancellationToken = default);
         Task<List<Post>> GetPublishedPostsAsync(int skip = 0, int limit = 10, CancellationToken cancellationToken = default);
+        Task<List<Post>> GetRecommendedPostsAsync(int limit = 10, CancellationToken cancellationToken = default);
         Task<List<Post>> SearchAsync(string keyword, int skip = 0, int limit = 10, CancellationToken cancellationToken = default);
         Task<Post?> UpdateAsync(Post post, CancellationToken cancellationToken = default);
         Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default);

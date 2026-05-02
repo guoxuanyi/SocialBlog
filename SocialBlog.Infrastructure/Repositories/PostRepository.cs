@@ -45,6 +45,18 @@ namespace SocialBlog.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<List<Post>> GetRecommendedPostsAsync(int limit = 10, CancellationToken cancellationToken = default)
+        {
+            limit = Math.Clamp(limit, 1, 50);
+
+            return await _context.Posts
+                .Find(x => x.Status == "Published")
+                .Limit(limit)
+                .SortByDescending(x => x.LikeCount)
+                .ThenByDescending(x => x.PublishedAt)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task<List<Post>> SearchAsync(string keyword, int skip = 0, int limit = 10, CancellationToken cancellationToken = default)
         {
             var filter = Builders<Post>.Filter.And(

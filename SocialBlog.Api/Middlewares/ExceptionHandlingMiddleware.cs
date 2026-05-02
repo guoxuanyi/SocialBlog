@@ -16,11 +16,16 @@ namespace SocialBlog.Api.Middlewares
     {
         private readonly RequestDelegate _next;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
-        public ExceptionHandlingMiddleware(RequestDelegate next, IServiceScopeFactory scopeFactory)
+        public ExceptionHandlingMiddleware(
+            RequestDelegate next,
+            IServiceScopeFactory scopeFactory,
+            ILogger<ExceptionHandlingMiddleware> logger)
         {
             _next = next;
             _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -37,6 +42,14 @@ namespace SocialBlog.Api.Middlewares
 
         private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
+            if (context.Response.HasStarted)
+            {
+                _logger.LogError(exception, "Response has already started, cannot write exception response");
+                context.Abort();
+                return;
+            }
+
+            context.Response.Clear();
             context.Response.ContentType = "application/json";
 
             using var scope = _scopeFactory.CreateScope();

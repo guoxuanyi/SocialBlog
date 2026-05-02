@@ -50,6 +50,13 @@ namespace SocialBlog.Api.Middlewares
                 {
                     _logger.LogError(ex, "An unhandled exception occurred");
                     context.Response.Body = originalBodyStream;
+                    if (context.Response.HasStarted)
+                    {
+                        context.Abort();
+                        return;
+                    }
+
+                    context.Response.Clear();
                     context.Response.ContentType = "application/json";
                     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
 
@@ -69,7 +76,10 @@ namespace SocialBlog.Api.Middlewares
         private async Task HandleApiResponse(HttpContext context, string content, MemoryStream responseBody, Stream originalBodyStream)
         {
             context.Response.Body = originalBodyStream;
-            context.Response.ContentType = "application/json";
+            if (!context.Response.HasStarted)
+            {
+                context.Response.ContentType = "application/json";
+            }
 
             var statusCode = context.Response.StatusCode;
             object? wrappedResponse;
