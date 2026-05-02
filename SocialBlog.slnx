@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SocialBlog.Api/SocialBlog.Api.csproj" />
+  <Project Path="SocialBlog.Application/SocialBlog.Application.csproj" />
+  <Project Path="SocialBlog.Core/SocialBlog.Core.csproj" />
+  <Project Path="SocialBlog.Infrastructure/SocialBlog.Infrastructure.csproj" />
+</Solution>
