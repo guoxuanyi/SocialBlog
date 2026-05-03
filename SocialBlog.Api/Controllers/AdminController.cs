@@ -9,6 +9,8 @@ using SocialBlog.Application.Responses;
 using SocialBlog.Core.Entities;
 using SocialBlog.Core.Exceptions;
 using SocialBlog.Core.Interfaces;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace SocialBlog.Api.Controllers
 {
@@ -101,6 +103,7 @@ namespace SocialBlog.Api.Controllers
             public string? AvatarUrl { get; set; }
             public string? CoverImageUrl { get; set; }
             public string? NewPassword { get; set; }
+            public string? AdminPassword { get; set; }
         }
 
         [HttpPut("users/{id}")]
@@ -110,17 +113,32 @@ namespace SocialBlog.Api.Controllers
                 new AdminUpdateUserCommand
                 {
                     UserId = id,
+                    ActorUserId = GetUserId(),
                     Username = request.Username,
                     Email = request.Email,
                     DisplayName = request.DisplayName,
                     Bio = request.Bio,
                     AvatarUrl = request.AvatarUrl,
                     CoverImageUrl = request.CoverImageUrl,
-                    NewPassword = request.NewPassword
+                    NewPassword = request.NewPassword,
+                    ActorPassword = request.AdminPassword
                 },
                 ct);
 
             return Ok(ApiResponse<object>.Success(new { updated }));
+        }
+
+        private string GetUserId()
+        {
+            var userId =
+                User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                User.FindFirstValue(JwtRegisteredClaimNames.Sub) ??
+                User.FindFirstValue("sub");
+
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new UnauthorizedException();
+
+            return userId;
         }
 
         [HttpDelete("users/{id}")]

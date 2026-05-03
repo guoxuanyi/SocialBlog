@@ -10,6 +10,7 @@ namespace SocialBlog.Application.Commands
     public record AdminUpdateUserCommand : IRequest<bool>
     {
         public required string UserId { get; init; }
+        public required string ActorUserId { get; init; }
         public string? Username { get; init; }
         public string? Email { get; init; }
         public string? DisplayName { get; init; }
@@ -17,10 +18,12 @@ namespace SocialBlog.Application.Commands
         public string? AvatarUrl { get; init; }
         public string? CoverImageUrl { get; init; }
         public string? NewPassword { get; init; }
+        public string? ActorPassword { get; init; }
     }
 
     public class AdminUpdateUserCommandHandler(
         IAdminUserRepository adminUserRepository,
+        IUserRepository userRepository,
         IPasswordHasher<User> passwordHasher) : IRequestHandler<AdminUpdateUserCommand, bool>
     {
         public async Task<bool> Handle(AdminUpdateUserCommand request, CancellationToken cancellationToken)
@@ -66,6 +69,21 @@ namespace SocialBlog.Application.Commands
             {
                 if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 6)
                     throw new ValidationException("Password must be at least 6 characters");
+
+                if (!ObjectId.TryParse(request.ActorUserId, out _))
+                    throw new ValidationException("Invalid actorUserId");
+
+                if (string.IsNullOrWhiteSpace(request.ActorPassword))
+                    throw new ValidationException("Admin password is required");
+
+                var actor = await userRepository.GetByIdAsync(request.ActorUserId, cancellationToken);
+                if (actor is null)
+                    throw new UnauthorizedException("Unauthorized");
+
+                var verify = passwordHasher.VerifyHashedPassword(actor, actor.PasswordHash, request.ActorPassword);
+                if (verify == PasswordVerificationResult.Failed)
+                    throw new UnauthorizedException("Admin password is incorrect");
+
                 var hash = passwordHasher.HashPassword(user, request.NewPassword);
                 update = update with { PasswordHash = hash };
             }
@@ -74,4 +92,3 @@ namespace SocialBlog.Application.Commands
         }
     }
 }
-
