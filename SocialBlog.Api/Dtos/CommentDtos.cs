@@ -18,4 +18,3 @@ namespace SocialBlog.Api.Dtos
         public string? ParentCommentId { get; set; }
     }
 }
-

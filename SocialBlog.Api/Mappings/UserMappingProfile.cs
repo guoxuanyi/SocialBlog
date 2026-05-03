@@ -9,6 +9,7 @@ namespace SocialBlog.Api.Mappings
         public UserMappingProfile()
         {
             CreateMap<User, UserProfileDto>();
+            CreateMap<User, PublicUserDto>();
         }
     }
 }

@@ -2,17 +2,15 @@ using Scalar.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using SocialBlog.Application.Commands;
-using SocialBlog.Application.Services;
 using SocialBlog.Core.Interfaces;
 using SocialBlog.Infrastructure.Data;
 using SocialBlog.Infrastructure.Repositories;
 using SocialBlog.Api.Middlewares;
-using Microsoft.AspNetCore.Localization;
 using Microsoft.IdentityModel.Tokens;
-using System.Globalization;
 using System.Text;
-using Microsoft.Extensions.Localization;
 using StackExchange.Redis;
+using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -78,25 +76,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-builder.Services.AddAuthorization();
-builder.Services.AddSingleton(typeof(IPasswordHasher<>), typeof(PasswordHasher<>));
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireAssertion(ctx =>
+        {
+            var raw = (builder.Configuration["Admin:UserIds"] ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+            var allowed = raw
+                .Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToHashSet(StringComparer.Ordinal);
 
-// Localization
-builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+            var userId =
+                ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                ctx.User.FindFirstValue(JwtRegisteredClaimNames.Sub) ??
+                ctx.User.FindFirstValue("sub");
+
+            return !string.IsNullOrWhiteSpace(userId) && allowed.Contains(userId);
+        }));
+});
+builder.Services.AddSingleton(typeof(IPasswordHasher<>), typeof(PasswordHasher<>));
 
 // Add AutoMapper
 builder.Services.AddAutoMapper(cfg => cfg.AddMaps(typeof(Program).Assembly));
-
-// Add Exception Handling Services (遵循 SOLID 原则 - 依赖倒置)
-builder.Services.AddScoped<IExceptionLogger, ExceptionLogger>();
-builder.Services.AddScoped<IExceptionStatusCodeMapper, DefaultExceptionStatusCodeMapper>();
-builder.Services.AddScoped<IExceptionMessageLocalizer>(sp =>
-{
-    var localizerFactory = sp.GetRequiredService<IStringLocalizerFactory>();
-    var localizer = localizerFactory.Create("SharedResources", typeof(Program).Assembly.GetName().Name!);
-    return new ExceptionMessageLocalizer(localizer);
-});
-builder.Services.AddScoped<IExceptionHandler, ExceptionHandler>();
 
 // Add MediatR
 builder.Services.AddMediatR(cfg =>
@@ -110,8 +112,15 @@ builder.Services.AddScoped<IPostRepository, PostRepository>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ILikeRepository, LikeRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IFollowRepository, FollowRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ITokenBlacklistRepository, TokenBlacklistRepository>();
+builder.Services.AddScoped<IAdminUserRepository, UserRepository>();
+builder.Services.AddScoped<IAdminPostRepository, PostRepository>();
+builder.Services.AddScoped<IAdminCommentRepository, CommentRepository>();
+builder.Services.AddScoped<IAdminLikeRepository, LikeRepository>();
+builder.Services.AddScoped<IAdminFollowRepository, FollowRepository>();
+builder.Services.AddScoped<IMediaStorage, GridFsMediaStorage>();
 
 var redisConnectionString = builder.Configuration["Redis:ConnectionString"];
 if (!string.IsNullOrWhiteSpace(redisConnectionString))
@@ -128,16 +137,6 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
-
-// Configure request localization
-var supportedCultures = new[] { new CultureInfo("zh-CN"), new CultureInfo("en-US") };
-var requestLocalizationOptions = new RequestLocalizationOptions
-{
-    DefaultRequestCulture = new RequestCulture("zh-CN"),
-    SupportedCultures = supportedCultures.ToList(),
-    SupportedUICultures = supportedCultures.ToList()
-};
-app.UseRequestLocalization(requestLocalizationOptions);
 
 // Add middleware
 app.UseExceptionHandling();

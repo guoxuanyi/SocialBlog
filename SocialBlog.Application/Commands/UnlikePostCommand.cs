@@ -32,6 +32,8 @@ namespace SocialBlog.Application.Commands
             var post = await _postRepository.GetByIdAsync(request.PostId, cancellationToken);
             if (post == null)
                 throw new NotFoundException("Post not found", "Post", request.PostId);
+            if (post.IsDeleted)
+                throw new NotFoundException("Post not found", "Post", request.PostId);
 
             var deleted = await _likeRepository.DeleteAsync(request.PostId, request.UserId, cancellationToken);
             if (!deleted)
@@ -42,4 +44,3 @@ namespace SocialBlog.Application.Commands
         }
     }
 }
-

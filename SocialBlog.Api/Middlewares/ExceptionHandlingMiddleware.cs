@@ -1,6 +1,4 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using SocialBlog.Application.Services;
+using SocialBlog.Core.Exceptions;
 
 namespace SocialBlog.Api.Middlewares
 {
@@ -15,16 +13,13 @@ namespace SocialBlog.Api.Middlewares
     public class ExceptionHandlingMiddleware
     {
         private readonly RequestDelegate _next;
-        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
         public ExceptionHandlingMiddleware(
             RequestDelegate next,
-            IServiceScopeFactory scopeFactory,
             ILogger<ExceptionHandlingMiddleware> logger)
         {
             _next = next;
-            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -49,26 +44,50 @@ namespace SocialBlog.Api.Middlewares
                 return;
             }
 
+            _logger.LogError(exception, "Unhandled exception");
+
+            var (code, message, detail) = MapException(exception);
             context.Response.Clear();
             context.Response.ContentType = "application/json";
+            context.Response.StatusCode = code;
 
-            using var scope = _scopeFactory.CreateScope();
-            var exceptionHandler = scope.ServiceProvider.GetRequiredService<IExceptionHandler>();
-
-            // 使用异常处理器处理异常
-            var exceptionResponse = exceptionHandler.Handle(exception, context.Request.Path);
-
-            context.Response.StatusCode = exceptionResponse.Code;
-
-            var options = new JsonSerializerOptions
+            await context.Response.WriteAsJsonAsync(new
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                WriteIndented = false,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
-
-            var json = JsonSerializer.Serialize(exceptionResponse, options);
-            await context.Response.WriteAsync(json);
+                success = false,
+                code,
+                message,
+                detail,
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            });
         }
+
+        private static (int Code, string Message, string? Detail) MapException(Exception exception)
+        {
+            if (exception is SocialBlog.Core.Exceptions.ApplicationException app)
+            {
+                var code = (int)app.StatusCode;
+                var message = string.IsNullOrWhiteSpace(app.Message) ? GetDefaultMessage(code) : app.Message;
+                return (code, message, null);
+            }
+
+            if (exception is UnauthorizedAccessException)
+                return (StatusCodes.Status401Unauthorized, "Unauthorized", null);
+
+            if (exception is ArgumentException)
+                return (StatusCodes.Status400BadRequest, "Bad Request", null);
+
+            return (StatusCodes.Status500InternalServerError, "An internal server error occurred", null);
+        }
+
+        private static string GetDefaultMessage(int statusCode) => statusCode switch
+        {
+            400 => "Bad Request",
+            401 => "Unauthorized",
+            403 => "Forbidden",
+            404 => "Not Found",
+            409 => "Conflict",
+            500 => "Internal Server Error",
+            _ => "Error"
+        };
     }
 }

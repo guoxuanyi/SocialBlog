@@ -5,12 +5,14 @@ using SocialBlog.Core.Interfaces;
 
 namespace SocialBlog.Application.Commands
 {
-    public record UpdateMyProfileCommand(
-        string UserId,
-        string? DisplayName,
-        string? Bio,
-        string? AvatarUrl
-    ) : IRequest<bool>;
+    public record UpdateMyProfileCommand : IRequest<bool>
+    {
+        public required string UserId { get; init; }
+        public string? DisplayName { get; init; }
+        public string? Bio { get; init; }
+        public string? AvatarUrl { get; init; }
+        public string? CoverImageUrl { get; init; }
+    }
 
     public class UpdateMyProfileCommandHandler(IUserRepository userRepository) : IRequestHandler<UpdateMyProfileCommand, bool>
     {
@@ -21,9 +23,13 @@ namespace SocialBlog.Application.Commands
 
             var updated = await userRepository.UpdateProfileAsync(
                 request.UserId,
-                request.DisplayName,
-                request.Bio,
-                request.AvatarUrl,
+                new UserProfileUpdate
+                {
+                    DisplayName = request.DisplayName,
+                    Bio = request.Bio,
+                    AvatarUrl = request.AvatarUrl,
+                    CoverImageUrl = request.CoverImageUrl
+                },
                 cancellationToken);
 
             if (updated is null)
