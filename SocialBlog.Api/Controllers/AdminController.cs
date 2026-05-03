@@ -103,7 +103,7 @@ namespace SocialBlog.Api.Controllers
             public string? AvatarUrl { get; set; }
             public string? CoverImageUrl { get; set; }
             public string? NewPassword { get; set; }
-            public string? AdminPassword { get; set; }
+            public string? ActorPassword { get; set; }
         }
 
         [HttpPut("users/{id}")]
@@ -121,7 +121,7 @@ namespace SocialBlog.Api.Controllers
                     AvatarUrl = request.AvatarUrl,
                     CoverImageUrl = request.CoverImageUrl,
                     NewPassword = request.NewPassword,
-                    ActorPassword = request.AdminPassword
+                    ActorPassword = request.ActorPassword
                 },
                 ct);
 
