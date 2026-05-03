@@ -74,7 +74,7 @@ namespace SocialBlog.Application.Commands
                     throw new ValidationException("Invalid actorUserId");
 
                 if (string.IsNullOrWhiteSpace(request.ActorPassword))
-                    throw new ValidationException("Admin password is required");
+                    throw new ValidationException("Actor password is required");
 
                 var actor = await userRepository.GetByIdAsync(request.ActorUserId, cancellationToken);
                 if (actor is null)
@@ -82,7 +82,7 @@ namespace SocialBlog.Application.Commands
 
                 var verify = passwordHasher.VerifyHashedPassword(actor, actor.PasswordHash, request.ActorPassword);
                 if (verify == PasswordVerificationResult.Failed)
-                    throw new UnauthorizedException("Admin password is incorrect");
+                    throw new UnauthorizedException("Actor password is incorrect");
 
                 var hash = passwordHasher.HashPassword(user, request.NewPassword);
                 update = update with { PasswordHash = hash };
