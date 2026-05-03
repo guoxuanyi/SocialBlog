@@ -10,12 +10,15 @@ namespace SocialBlog.Application.Queries
 
     public class GetPostByIdQueryHandler(IPostRepository postRepository) : IRequestHandler<GetPostByIdQuery, Post?>
     {
-        public Task<Post?> Handle(GetPostByIdQuery request, CancellationToken cancellationToken)
+        public async Task<Post?> Handle(GetPostByIdQuery request, CancellationToken cancellationToken)
         {
             if (!ObjectId.TryParse(request.Id, out _))
                 throw new ValidationException("Invalid postId");
 
-            return postRepository.GetByIdAsync(request.Id, cancellationToken);
+            var post = await postRepository.GetByIdAsync(request.Id, cancellationToken);
+            if (post is null) return null;
+            if (post.IsDeleted) return null;
+            return post;
         }
     }
 }

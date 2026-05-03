@@ -34,6 +34,9 @@ namespace SocialBlog.Core.Entities
         [BsonElement("avatarUrl")]
         public string? AvatarUrl { get; set; }
 
+        [BsonElement("coverImageUrl")]
+        public string? CoverImageUrl { get; set; }
+
         [BsonElement("createdAt")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

@@ -46,9 +46,20 @@ namespace SocialBlog.Api.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
         {
-            var user = await mediator.Send(new AuthenticateUserQuery(request.Username, request.Password), ct);
-            var tokenPair = await IssueTokenPairAsync(user, ct);
-            return Ok(ApiResponse<TokenPairResponse>.Success(tokenPair, "OK"));
+            try
+            {
+                var user = await mediator.Send(new AuthenticateUserQuery(request.Username, request.Password), ct);
+                var tokenPair = await IssueTokenPairAsync(user, ct);
+                return Ok(ApiResponse<TokenPairResponse>.Success(tokenPair, "OK"));
+            }
+            catch (SocialBlog.Core.Exceptions.UnauthorizedException)
+            {
+                return Unauthorized(ApiResponse<TokenPairResponse>.Failure("用户名或密码错误", 401));
+            }
+            catch (SocialBlog.Core.Exceptions.ValidationException ex)
+            {
+                return BadRequest(ApiResponse<TokenPairResponse>.Failure(ex.Message, 400));
+            }
         }
 
         [HttpPost("refresh")]

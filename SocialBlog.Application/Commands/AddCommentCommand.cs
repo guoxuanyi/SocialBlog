@@ -6,12 +6,13 @@ using SocialBlog.Core.Interfaces;
 
 namespace SocialBlog.Application.Commands
 {
-    public record AddCommentCommand(
-        string PostId,
-        string AuthorId,
-        string Content,
-        string? ParentCommentId = null
-    ) : IRequest<string>;
+    public record AddCommentCommand : IRequest<string>
+    {
+        public required string PostId { get; init; }
+        public required string AuthorId { get; init; }
+        public required string Content { get; init; }
+        public string? ParentCommentId { get; init; }
+    }
 
     public class AddCommentCommandHandler : IRequestHandler<AddCommentCommand, string>
     {
@@ -41,6 +42,8 @@ namespace SocialBlog.Application.Commands
             var post = await _postRepository.GetByIdAsync(request.PostId, cancellationToken);
             if (post == null)
                 throw new NotFoundException("Post not found", "Post", request.PostId);
+            if (post.IsDeleted)
+                throw new NotFoundException("Post not found", "Post", request.PostId);
 
             if (request.ParentCommentId != null)
             {
@@ -69,4 +72,3 @@ namespace SocialBlog.Application.Commands
         }
     }
 }
-

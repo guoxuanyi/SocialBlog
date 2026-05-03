@@ -7,7 +7,8 @@ namespace SocialBlog.Application.Commands
 {
     public record DeleteCommentCommand(
         string PostId,
-        string CommentId
+        string CommentId,
+        string ActorUserId
     ) : IRequest<bool>;
 
     public class DeleteCommentCommandHandler : IRequestHandler<DeleteCommentCommand, bool>
@@ -29,17 +30,27 @@ namespace SocialBlog.Application.Commands
             if (!ObjectId.TryParse(request.CommentId, out _))
                 throw new ValidationException("Invalid commentId");
 
+            if (!ObjectId.TryParse(request.ActorUserId, out _))
+                throw new ValidationException("Invalid actorUserId");
+
+            var post = await _postRepository.GetByIdAsync(request.PostId, cancellationToken);
+            if (post is null)
+                throw new NotFoundException("Post not found", "Post", request.PostId);
+
             var comment = await _commentRepository.GetByIdAsync(request.CommentId, cancellationToken);
             if (comment == null || comment.PostId != request.PostId)
                 throw new NotFoundException("Comment not found", "Comment", request.CommentId);
 
-            var deleted = await _commentRepository.DeleteAsync(request.CommentId, cancellationToken);
-            if (!deleted)
+            if (request.ActorUserId != comment.AuthorId && request.ActorUserId != post.AuthorId)
+                throw new ForbiddenException();
+
+            var deletedCount = await _commentRepository.DeleteTreeAsync(request.CommentId, cancellationToken);
+            if (deletedCount <= 0)
                 return false;
 
-            await _postRepository.IncrementCommentCountAsync(request.PostId, -1, cancellationToken);
+            var delta = (int)Math.Min(int.MaxValue, deletedCount);
+            await _postRepository.IncrementCommentCountAsync(request.PostId, -delta, cancellationToken);
             return true;
         }
     }
 }
-

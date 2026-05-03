@@ -19,6 +19,12 @@ namespace SocialBlog.Api.Middlewares
 
         public async Task InvokeAsync(HttpContext context)
         {
+            if (context.Request.Path.StartsWithSegments("/api/Posts/media"))
+            {
+                await _next(context);
+                return;
+            }
+
             // 保存原始响应流
             var originalBodyStream = context.Response.Body;
 
@@ -30,19 +36,23 @@ namespace SocialBlog.Api.Middlewares
                 {
                     await _next(context);
 
-                    // 读取响应内容
-                    responseBody.Seek(0, SeekOrigin.Begin);
-                    var content = await new StreamReader(responseBody).ReadToEndAsync();
-                    responseBody.Seek(0, SeekOrigin.Begin);
+                    var isApi = context.Request.Path.StartsWithSegments("/api");
+                    var contentType = context.Response.ContentType ?? string.Empty;
+                    var isJson = contentType.Contains("application/json", StringComparison.OrdinalIgnoreCase) ||
+                                 contentType.Contains("text/json", StringComparison.OrdinalIgnoreCase) ||
+                                 string.IsNullOrWhiteSpace(contentType);
 
-                    // 只包装 API 响应（/api/ 路径）
-                    if (context.Request.Path.StartsWithSegments("/api"))
+                    if (isApi && isJson)
                     {
+                        responseBody.Seek(0, SeekOrigin.Begin);
+                        var content = await new StreamReader(responseBody).ReadToEndAsync();
+                        responseBody.Seek(0, SeekOrigin.Begin);
                         await HandleApiResponse(context, content, responseBody, originalBodyStream);
                     }
                     else
                     {
-                        // 非 API 请求直接转发
+                        context.Response.Body = originalBodyStream;
+                        responseBody.Seek(0, SeekOrigin.Begin);
                         await responseBody.CopyToAsync(originalBodyStream);
                     }
                 }
@@ -50,25 +60,7 @@ namespace SocialBlog.Api.Middlewares
                 {
                     _logger.LogError(ex, "An unhandled exception occurred");
                     context.Response.Body = originalBodyStream;
-                    if (context.Response.HasStarted)
-                    {
-                        context.Abort();
-                        return;
-                    }
-
-                    context.Response.Clear();
-                    context.Response.ContentType = "application/json";
-                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-
-                    var errorResponse = new
-                    {
-                        success = false,
-                        message = "An internal server error occurred",
-                        code = 500,
-                        timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-                    };
-
-                    await context.Response.WriteAsJsonAsync(errorResponse);
+                    throw;
                 }
             }
         }

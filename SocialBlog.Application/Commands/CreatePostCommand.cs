@@ -6,13 +6,14 @@ using SocialBlog.Core.Interfaces;
 
 namespace SocialBlog.Application.Commands
 {
-    public record CreatePostCommand(
-        string Title,
-        string Content,
-        string AuthorId,
-        string? CoverImageUrl = null,
-        List<string>? Tags = null
-    ) : IRequest<string>;
+    public record CreatePostCommand : IRequest<string>
+    {
+        public required string Title { get; init; }
+        public required string Content { get; init; }
+        public required string AuthorId { get; init; }
+        public string? CoverImageUrl { get; init; }
+        public List<string>? Tags { get; init; }
+    }
 
     public class CreatePostCommandHandler(IPostRepository postRepository) : IRequestHandler<CreatePostCommand, string>
     {

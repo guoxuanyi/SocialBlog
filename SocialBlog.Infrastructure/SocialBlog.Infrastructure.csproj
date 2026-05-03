@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\SocialBlog.Application\SocialBlog.Application.csproj" />
     <ProjectReference Include="..\SocialBlog.Core\SocialBlog.Core.csproj" />
   </ItemGroup>
 

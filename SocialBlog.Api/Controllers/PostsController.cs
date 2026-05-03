@@ -8,6 +8,8 @@ using SocialBlog.Application.Responses;
 using SocialBlog.Api.Models;
 using SocialBlog.Api.Dtos;
 using SocialBlog.Core.Entities;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 
 namespace SocialBlog.Api.Controllers
 {
@@ -15,19 +17,23 @@ namespace SocialBlog.Api.Controllers
     [Route("api/[controller]")]
     public class PostsController(IMediator mediator, IMapper mapper) : ControllerBase
     {
+        public record UploadMediaResponse(string Url, string ContentType, long Size, string Name);
+
         [HttpPost]
         [Authorize]
         public async Task<IActionResult> CreatePost(
             [FromBody] CreatePostRequest request,
             CancellationToken ct = default)
         {
-            var command = new CreatePostCommand(
-                request.Title,
-                request.Content,
-                request.AuthorId,
-                request.CoverImageUrl,
-                request.Tags
-            );
+            var me = GetUserIdOrThrow();
+            var command = new CreatePostCommand
+            {
+                Title = request.Title,
+                Content = request.Content,
+                AuthorId = me,
+                CoverImageUrl = request.CoverImageUrl,
+                Tags = request.Tags
+            };
 
             var postId = await mediator.Send(command, ct);
             var response = new CreatePostResponse(postId);
@@ -58,6 +64,16 @@ namespace SocialBlog.Api.Controllers
                     404
                 );
                 return NotFound(errorResponse);
+            }
+
+            if (!string.Equals(post.Status, "Published", StringComparison.OrdinalIgnoreCase))
+            {
+                var me = GetUserIdOrEmpty();
+                if (string.IsNullOrWhiteSpace(me) || !string.Equals(me, post.AuthorId, StringComparison.OrdinalIgnoreCase))
+                {
+                    var errorResponse = ApiResponse<PostDto>.Failure("Post not found", 404);
+                    return NotFound(errorResponse);
+                }
             }
 
             var dto = mapper.Map<PostDto>(post);
@@ -171,13 +187,16 @@ namespace SocialBlog.Api.Controllers
             [FromBody] UpdatePostRequest request,
             CancellationToken ct = default)
         {
-            var command = new UpdatePostCommand(
-                id,
-                request.Title,
-                request.Content,
-                request.CoverImageUrl,
-                request.Tags
-            );
+            var me = GetUserIdOrThrow();
+            var command = new UpdatePostCommand
+            {
+                Id = id,
+                ActorUserId = me,
+                Title = request.Title,
+                Content = request.Content,
+                CoverImageUrl = request.CoverImageUrl,
+                Tags = request.Tags
+            };
 
             var result = await mediator.Send(command, ct);
             if (!result)
@@ -203,7 +222,8 @@ namespace SocialBlog.Api.Controllers
             string id,
             CancellationToken ct = default)
         {
-            var command = new PublishPostCommand(id);
+            var me = GetUserIdOrThrow();
+            var command = new PublishPostCommand(id, me);
             var result = await mediator.Send(command, ct);
 
             if (!result)
@@ -229,7 +249,8 @@ namespace SocialBlog.Api.Controllers
             string id,
             CancellationToken ct = default)
         {
-            var command = new DeletePostCommand(id);
+            var me = GetUserIdOrThrow();
+            var command = new DeletePostCommand(id, me);
             var result = await mediator.Send(command, ct);
 
             if (!result)
@@ -246,6 +267,81 @@ namespace SocialBlog.Api.Controllers
             return Ok(apiResponse);
         }
 
+        [HttpPost("media")]
+        [Authorize]
+        [RequestSizeLimit(200_000_000)]
+        public async Task<ActionResult<ApiResponse<UploadMediaResponse>>> UploadMedia([FromForm] IFormFile file, CancellationToken ct = default)
+        {
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            await using var stream = file.OpenReadStream();
+            var result = await mediator.Send(
+                new UploadMediaCommand
+                {
+                    Content = stream,
+                    FileName = file.FileName ?? "upload",
+                    ContentType = file.ContentType ?? string.Empty,
+                    Length = file.Length,
+                    BaseUrl = baseUrl
+                },
+                ct);
+
+            var payload = new UploadMediaResponse(result.Url, result.ContentType, result.Size, result.Name);
+            return Ok(ApiResponse<UploadMediaResponse>.Success(payload));
+        }
+
+        [HttpGet("media/{fileId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetMedia(string fileId, CancellationToken ct = default)
+        {
+            var content = await mediator.Send(new GetMediaContentQuery { FileId = fileId }, ct);
+            if (content is null)
+                return NotFound();
+
+            var contentType = content.ContentType;
+            var downloadName = Request.Query.TryGetValue("name", out var name) ? name.ToString() : content.FileName;
+            var download = Request.Query.TryGetValue("download", out var dl) && string.Equals(dl.ToString(), "1", StringComparison.OrdinalIgnoreCase);
+
+            if (download)
+                return File(content.Stream, contentType, fileDownloadName: downloadName, enableRangeProcessing: true);
+            return File(content.Stream, contentType, enableRangeProcessing: true);
+        }
+
+        [HttpGet("trash")]
+        [Authorize]
+        public async Task<ActionResult<ApiResponse<PaginatedResponse<PostDto>>>> GetMyTrash(
+            [FromQuery] int skip = 0,
+            [FromQuery] int limit = 10,
+            CancellationToken ct = default)
+        {
+            var me = GetUserIdOrThrow();
+            var query = new GetMyTrashPostsQuery(me, skip, limit);
+            var result = await mediator.Send(query, ct);
+
+            var dtos = mapper.Map<List<PostDto>>(result.Items);
+            var paginatedResponse = new PaginatedResponse<PostDto>
+            {
+                Data = dtos,
+                Total = result.Total,
+                Skip = skip,
+                Limit = limit
+            };
+
+            var response = ApiResponse<PaginatedResponse<PostDto>>.Success(paginatedResponse);
+            return Ok(response);
+        }
+
+        [HttpPost("{id}/restore")]
+        [Authorize]
+        public async Task<ActionResult<ApiResponse<object>>> RestorePost(
+            string id,
+            CancellationToken ct = default)
+        {
+            var me = GetUserIdOrThrow();
+            var command = new RestorePostCommand(id, me);
+            var restored = await mediator.Send(command, ct);
+            return Ok(ApiResponse<object>.Success(new { restored }));
+        }
+
         [HttpPost("{id}/comments")]
         [Authorize]
         public async Task<ActionResult<ApiResponse<CreateCommentResponse>>> AddComment(
@@ -253,12 +349,18 @@ namespace SocialBlog.Api.Controllers
             [FromBody] CreateCommentRequest request,
             CancellationToken ct = default)
         {
-            var command = new AddCommentCommand(
-                id,
-                request.AuthorId,
-                request.Content,
-                request.ParentCommentId
-            );
+            var me = GetUserIdOrThrow();
+            if (!string.IsNullOrWhiteSpace(request.AuthorId) && request.AuthorId != me)
+            {
+                return BadRequest(ApiResponse<CreateCommentResponse>.Failure("authorId must match current user", 400));
+            }
+            var command = new AddCommentCommand
+            {
+                PostId = id,
+                AuthorId = me,
+                Content = request.Content,
+                ParentCommentId = request.ParentCommentId
+            };
 
             var commentId = await mediator.Send(command, ct);
 
@@ -297,7 +399,8 @@ namespace SocialBlog.Api.Controllers
             string commentId,
             CancellationToken ct = default)
         {
-            var command = new DeleteCommentCommand(id, commentId);
+            var me = GetUserIdOrThrow();
+            var command = new DeleteCommentCommand(id, commentId, me);
             var deleted = await mediator.Send(command, ct);
 
             var apiResponse = ApiResponse<object>.Success(new { deleted });
@@ -343,6 +446,24 @@ namespace SocialBlog.Api.Controllers
 
             var apiResponse = ApiResponse<object>.Success(new { liked });
             return Ok(apiResponse);
+        }
+
+        private string GetUserIdOrEmpty()
+        {
+            var userId =
+                User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                User.FindFirstValue(JwtRegisteredClaimNames.Sub) ??
+                User.FindFirstValue("sub");
+
+            return userId ?? string.Empty;
+        }
+
+        private string GetUserIdOrThrow()
+        {
+            var userId = GetUserIdOrEmpty();
+            if (string.IsNullOrWhiteSpace(userId))
+                throw new SocialBlog.Core.Exceptions.UnauthorizedException();
+            return userId;
         }
     }
 }

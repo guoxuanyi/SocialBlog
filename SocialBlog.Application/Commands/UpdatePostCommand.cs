@@ -5,13 +5,15 @@ using SocialBlog.Core.Interfaces;
 
 namespace SocialBlog.Application.Commands
 {
-    public record UpdatePostCommand(
-        string Id,
-        string Title,
-        string Content,
-        string? CoverImageUrl = null,
-        List<string>? Tags = null
-    ) : IRequest<bool>;
+    public record UpdatePostCommand : IRequest<bool>
+    {
+        public required string Id { get; init; }
+        public required string ActorUserId { get; init; }
+        public required string Title { get; init; }
+        public required string Content { get; init; }
+        public string? CoverImageUrl { get; init; }
+        public List<string>? Tags { get; init; }
+    }
 
     public class UpdatePostCommandHandler(IPostRepository postRepository) : IRequestHandler<UpdatePostCommand, bool>
     {
@@ -19,6 +21,9 @@ namespace SocialBlog.Application.Commands
         {
             if (!ObjectId.TryParse(request.Id, out _))
                 throw new ValidationException("Invalid postId");
+
+            if (!ObjectId.TryParse(request.ActorUserId, out _))
+                throw new ValidationException("Invalid userId");
 
             if (string.IsNullOrWhiteSpace(request.Title))
                 throw new ValidationException("Title is required");
@@ -29,6 +34,11 @@ namespace SocialBlog.Application.Commands
             var post = await postRepository.GetByIdAsync(request.Id, cancellationToken);
             if (post == null)
                 throw new NotFoundException("Post not found", "Post", request.Id);
+            if (post.IsDeleted)
+                throw new NotFoundException("Post not found", "Post", request.Id);
+
+            if (!string.Equals(post.AuthorId, request.ActorUserId, StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException("Not allowed");
 
             post.Title = request.Title;
             post.Content = request.Content;

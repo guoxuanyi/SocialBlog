@@ -43,5 +43,11 @@ namespace SocialBlog.Core.Entities
 
         [BsonElement("publishedAt")]
         public DateTime? PublishedAt { get; set; }
+
+        [BsonElement("isDeleted")]
+        public bool IsDeleted { get; set; } = false;
+
+        [BsonElement("deletedAt")]
+        public DateTime? DeletedAt { get; set; }
     }
 }

@@ -5,7 +5,7 @@ using SocialBlog.Infrastructure.Data;
 
 namespace SocialBlog.Infrastructure.Repositories
 {
-    public class LikeRepository : ILikeRepository
+    public class LikeRepository : ILikeRepository, IAdminLikeRepository
     {
         private readonly MongoDbContext _context;
 
@@ -42,6 +42,33 @@ namespace SocialBlog.Infrastructure.Repositories
         {
             return _context.Likes.CountDocumentsAsync(x => x.PostId == postId, cancellationToken: cancellationToken);
         }
+
+        public async Task<(List<Like> Items, long Total)> GetPagedAsync(int skip, int limit, CancellationToken cancellationToken = default)
+        {
+            var totalTask = _context.Likes.CountDocumentsAsync(FilterDefinition<Like>.Empty, cancellationToken: cancellationToken);
+            var itemsTask = _context.Likes
+                .Find(FilterDefinition<Like>.Empty)
+                .SortByDescending(x => x.CreatedAt)
+                .Skip(skip)
+                .Limit(limit)
+                .ToListAsync(cancellationToken);
+
+            await Task.WhenAll(totalTask, itemsTask);
+            return (itemsTask.Result, totalTask.Result);
+        }
+
+        public async Task<Like?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+        {
+            return await _context.Likes.Find(x => x.Id == id).FirstOrDefaultAsync(cancellationToken);
+        }
+
+        Task<Like> IAdminLikeRepository.AddAsync(Like like, CancellationToken cancellationToken)
+            => AddAsync(like, cancellationToken);
+
+        public async Task<bool> DeleteByIdAsync(string id, CancellationToken cancellationToken = default)
+        {
+            var result = await _context.Likes.DeleteOneAsync(x => x.Id == id, cancellationToken);
+            return result.DeletedCount > 0;
+        }
     }
 }
-

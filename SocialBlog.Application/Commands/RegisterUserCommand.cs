@@ -6,12 +6,13 @@ using SocialBlog.Core.Interfaces;
 
 namespace SocialBlog.Application.Commands
 {
-    public record RegisterUserCommand(
-        string Username,
-        string Email,
-        string Password,
-        string? DisplayName = null
-    ) : IRequest<string>;
+    public record RegisterUserCommand : IRequest<string>
+    {
+        public required string Username { get; init; }
+        public required string Email { get; init; }
+        public required string Password { get; init; }
+        public string? DisplayName { get; init; }
+    }
 
     public class RegisterUserCommandHandler(
         IUserRepository userRepository,
