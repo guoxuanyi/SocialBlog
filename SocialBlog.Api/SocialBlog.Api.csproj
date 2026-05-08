@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="AutoMapper" Version="16.1.1" />
+    <PackageReference Include="MediatR" Version="14.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.7" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.7" />
@@ -16,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SocialBlog.Core\SocialBlog.Core.csproj" />
     <ProjectReference Include="..\SocialBlog.Application\SocialBlog.Application.csproj" />
     <ProjectReference Include="..\SocialBlog.Infrastructure\SocialBlog.Infrastructure.csproj" />
   </ItemGroup>
