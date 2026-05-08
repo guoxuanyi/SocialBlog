@@ -147,11 +147,19 @@ if (app.Environment.IsDevelopment())
     app.UseCors();
 }
 
-app.UseHttpsRedirection();
+// Only use HTTPS redirection in production, not in Railway staging
+if (!app.Environment.IsDevelopment() && Environment.GetEnvironmentVariable("RAILWAY_ENVIRONMENT_NAME") == null)
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Support Railway's PORT environment variable
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+app.Urls.Add($"http://*:{port}");
 
 app.Run();

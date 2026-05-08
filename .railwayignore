@@ -1,0 +1,9 @@
+node_modules/
+.git/
+.vscode/
+.vs/
+bin/
+obj/
+*.user
+*.suo
+.DS_Store
