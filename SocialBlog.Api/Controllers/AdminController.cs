@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.JsonWebTokens;
 using SocialBlog.Api.Dtos;
 using SocialBlog.Api.Models;
 using SocialBlog.Application.Commands;
@@ -9,7 +10,6 @@ using SocialBlog.Application.Responses;
 using SocialBlog.Core.Entities;
 using SocialBlog.Core.Exceptions;
 using SocialBlog.Core.Interfaces;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 namespace SocialBlog.Api.Controllers
